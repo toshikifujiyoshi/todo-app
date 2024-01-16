@@ -22,19 +22,20 @@ definePageMeta({
 
 const isOpen = ref(false)
 
-const todoList = ref([]) // todoListをrefで宣言
+const todos = ref([]) // todoListをrefで宣言
 
 const querySnapshot = await getDocs(collection(db, 'todos'))
-querySnapshot.forEach(doc => todoList.value.push(doc.data()) // todoListにデータを追加
-)
-
+querySnapshot.forEach(doc => todos.value.push({ field: doc.data(), id: doc.id }))
 </script>
 <template>
   <div class="p-20 h-[100%] w-[100%] bg-slate-400">
-    <div>
-      <h2>todo一覧</h2>
-      <div>
-        <UTable :rows="todoList" />
+    <div class="bg-white rounded-md p-4 text-lg">
+      <h2 class="font-bold mb-2">
+        todo一覧
+      </h2>
+      <div v-for="todo in todos" :key="todo" class="flex justify-between p-2 border-t">
+        <p>{{ todo.field.todoTitle }}</p>
+        <UButton label="削除する" color="rose" variant="solid" @click="delateTodo" />
       </div>
     </div>
   </div>
