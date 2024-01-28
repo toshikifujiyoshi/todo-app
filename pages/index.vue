@@ -19,13 +19,18 @@ definePageMeta({
   layout: 'is-sidebar'
 })
 
-const isOpen = ref(false)
+type DocumentData = {
+  field: {
+    todoTitle: string
+  }
+  id: string
+}
 
 const todos = ref<DocumentData[]>([])
 
 // データの取得
 const querySnapshot = await getDocs(collection(db, 'todos'))
-querySnapshot.forEach(doc => todos.value.push({ field: doc.data(), id: doc.id }))
+querySnapshot.forEach(doc => todos.value.push({ field: { todoTitle: doc.data().todoTitle }, id: doc.id }))
 
 // todo を削除する関数
 const deleteTodo = async (todoId: string) => {
@@ -47,9 +52,9 @@ const deleteTodo = async (todoId: string) => {
       <h2 class="font-bold mb-2">
         todo一覧
       </h2>
-      <div v-for="todo in todos" :key="todo.id" class="flex justify-between p-2 border-t">
-        <p>{{ todo.field.todoTitle }}</p>
-        <UButton label="削除する" color="rose" variant="solid" @click="() => deleteTodo(todo.id)" />
+      <div v-for="{field, id} in todos" :key="id" class="flex justify-between p-2 border-t">
+        <p class="text-black">{{ field.todoTitle }}</p>
+        <UButton label="削除する" color="rose" variant="solid" @click="() => deleteTodo(id)" />
       </div>
     </div>
   </div>
