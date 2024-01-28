@@ -27,7 +27,7 @@ const links = [
 <template>
   <div class="bg-slate-800 text-white flex justify-between items-center p-6">
     <NuxtLink to="/">
-      <img class="w-12" src="../public/todo_icon.png">
+      <img class="w-12" src="/todo_icon.png">
     </NuxtLink>
     <h1 class="text-2xl justify-center">
       ToDoApp
