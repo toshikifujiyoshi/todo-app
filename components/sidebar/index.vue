@@ -39,7 +39,6 @@ const addTodo = async () => {
   count.value++
   emits('addTodo', count.value)
 }
-
 </script>
 <template>
   <div class="p-20 w-[100%] height-[100%] bg-slate-200">
