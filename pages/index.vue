@@ -90,7 +90,7 @@ const saveEdit = async (todoId: string) => {
 </script>
 
 <template>
-  <div class="p-20 h-[100%] w-[100%] bg-slate-400">
+  <div class="px-10 py-20 h-[100%] w-[100%] bg-slate-400">
     <div class="bg-white rounded-md p-4 text-lg">
       <h2 class="font-bold mb-2">todo一覧</h2>
       <div
@@ -106,7 +106,11 @@ const saveEdit = async (todoId: string) => {
             variant="solid"
             @click="() => deleteTodo(id)"
           />
-          <UButton label="編集する" @click="openModal(field.todoTitle, id)" />
+          <UButton
+            label="編集する"
+            @click="openModal(field.todoTitle, id)"
+            class="ml-2"
+          />
         </div>
       </div>
       <UModal v-model="isOpen">
