@@ -16,6 +16,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const isOpen = ref(false);
 const todoTitle = ref<string>("");
+const todoDetail = ref<string>("");
 const count = ref(0);
 
 /**
@@ -34,11 +35,14 @@ const addTodo = async () => {
   }
   await addDoc(collection(db, "todos"), {
     todoTitle: todoTitle.value,
+    todoDetail: todoDetail.value,
+    isCompleted: false,
   });
   // モーダルを閉じる
   isOpen.value = false;
   // ユーザーが入力した値をリセット
   todoTitle.value = "";
+  todoDetail.value = "";
   count.value++;
   emits("addTodo", count.value);
 };
@@ -55,8 +59,24 @@ const addTodo = async () => {
         <UModal v-model="isOpen">
           <div class="p-4">
             <div>
-              <UInput v-model="todoTitle" placeholder="タスク名を入力" />
-              <UButton label="タスクを作成する" block @click="addTodo" />
+              <p>タスク名</p>
+              <UInput
+                v-model="todoTitle"
+                placeholder="タスク名を入力"
+                class="mt-2"
+              />
+              <p class="mt-6">タスクの詳細</p>
+              <UTextarea
+                v-model="todoDetail"
+                placeholder="タスクの詳細を入力"
+                class="mt-2"
+              />
+              <UButton
+                label="タスクを作成する"
+                block
+                @click="addTodo"
+                class="mt-6"
+              />
             </div>
           </div>
         </UModal>
