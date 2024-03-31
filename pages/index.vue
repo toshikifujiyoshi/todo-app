@@ -44,7 +44,6 @@ const editedTodo = ref<DocumentData>({
   id: "",
 });
 const isOpen = ref(false);
-const page = ref(1);
 
 // データの取得
 const querySnapshot = await getDocs(collection(db, "todos"));
@@ -119,6 +118,15 @@ const saveEdit = async (todoId: string) => {
     console.error("Error updating todo:", error);
   }
 };
+
+const page = ref(1);
+const pageCount = ref(10);
+const displayTodos = computed(() =>
+  todos.value.slice(
+    pageCount.value * (page.value - 1) + 1,
+    pageCount.value * page.value
+  )
+);
 </script>
 
 <template>
@@ -128,7 +136,7 @@ const saveEdit = async (todoId: string) => {
       <div>
         <div v-if="todos.length !== 0">
           <div
-            v-for="{ field, id } in todos"
+            v-for="{ field, id } in displayTodos"
             :key="id"
             class="flex justify-between p-2 border-t"
           >
@@ -160,7 +168,7 @@ const saveEdit = async (todoId: string) => {
               class="ml-2"
             />
           </div>
-          <UPagination v-model="page" :page-count="5" :total="todos.length" />
+          <UPagination v-model="page" :page-count="10" :total="todos.length" />
 
           <UModal v-model="isOpen">
             <div class="p-4">
