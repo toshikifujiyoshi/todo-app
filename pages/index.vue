@@ -44,6 +44,7 @@ const editedTodo = ref<DocumentData>({
   id: "",
 });
 const isOpen = ref(false);
+const page = ref(1);
 
 // データの取得
 const querySnapshot = await getDocs(collection(db, "todos"));
@@ -69,6 +70,8 @@ const deleteTodo = async (todoId: string) => {
   } catch (error) {
     console.error("Error deleting todo:", error);
   }
+  // モーダルを閉じる
+  isOpen.value = false;
 };
 
 // 編集モーダルを開く関数
@@ -122,20 +125,28 @@ const saveEdit = async (todoId: string) => {
   <div class="px-10 py-20 h-[100%] w-[100%] bg-slate-400">
     <div class="bg-white rounded-md p-4 text-lg">
       <h2 class="font-bold mb-2">タスク一覧</h2>
-      <div v-if="todos.length !== 0">
-        <div
-          v-for="{ field, id } in todos"
-          :key="id"
-          class="flex justify-between p-2 border-t"
-        >
-          <p class="text-black">{{ field.todoTitle }}</p>
-          <div>
-            <UButton
-              label="削除する"
-              color="rose"
-              variant="solid"
-              @click="() => deleteTodo(id)"
-            />
+      <div>
+        <div v-if="todos.length !== 0">
+          <div
+            v-for="{ field, id } in todos"
+            :key="id"
+            class="flex justify-between p-2 border-t"
+          >
+            <div class="flex">
+              <div class="w-[60px] mr-4 text-center">
+                <UBadge
+                  variant="subtle"
+                  color="emerald"
+                  :label="field.isCompleted ? '完了' : '進行中'"
+                  :class="
+                    !field.isCompleted
+                      ? 'text-orange-500 bg-orange-50 ring-orange-500'
+                      : ''
+                  "
+                />
+              </div>
+              <p class="text-black">{{ field.todoTitle }}</p>
+            </div>
             <UButton
               label="編集する"
               @click="
@@ -149,34 +160,56 @@ const saveEdit = async (todoId: string) => {
               class="ml-2"
             />
           </div>
-        </div>
-        <UModal v-model="isOpen">
-          <div class="p-4">
-            <div>
-              <p>タスク名</p>
-              <UInput
-                v-model="editedTodo.field.todoTitle"
-                placeholder="タスク名を編集する"
-                class="mt-2"
-              />
-              <p class="mt-6">タスクの詳細</p>
-              <UTextarea
-                v-model="editedTodo.field.todoDetail"
-                placeholder="タスクの詳細を編集する"
-                class="mt-2"
-              />
-              <UButton
-                label="編集を保存する"
-                block
-                @click="saveEdit(editedTodo.id)"
-                class="mt-6"
-              />
+          <UPagination v-model="page" :page-count="5" :total="todos.length" />
+
+          <UModal v-model="isOpen">
+            <div class="p-4">
+              <div>
+                <p>タスク名</p>
+                <UInput
+                  v-model="editedTodo.field.todoTitle"
+                  placeholder="タスク名を編集する"
+                  class="mt-2"
+                />
+                <p class="mt-6">タスクの詳細</p>
+                <UTextarea
+                  v-model="editedTodo.field.todoDetail"
+                  placeholder="タスクの詳細を編集する"
+                  class="mt-2"
+                />
+                <p class="mt-6">タスクのステータス</p>
+                <div class="mt-2">
+                  <UToggle
+                    size="xl"
+                    on-icon="i-heroicons-check-20-solid"
+                    off-icon="i-heroicons-x-mark-20-solid"
+                    v-model="editedTodo.field.isCompleted"
+                    class="mr-4"
+                  />
+                  <p v-if="editedTodo.field.isCompleted">完了</p>
+                  <p v-else>未完了</p>
+                </div>
+                <div class="mt-6">
+                  <UButton
+                    label="編集を保存する"
+                    block
+                    @click="saveEdit(editedTodo.id)"
+                  />
+                  <UButton
+                    label="削除する"
+                    block
+                    color="rose"
+                    @click="deleteTodo(editedTodo.id)"
+                    class="mt-4"
+                  />
+                </div>
+              </div>
             </div>
-          </div>
-        </UModal>
-      </div>
-      <div v-else class="border-t text-center py-8">
-        タスクがありません。タスクを作成してください。
+          </UModal>
+        </div>
+        <div v-else class="border-t text-center py-8">
+          タスクがありません。タスクを作成してください。
+        </div>
       </div>
     </div>
   </div>
