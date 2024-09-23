@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { initializeApp } from "firebase/app";
+import { initializeApp } from 'firebase/app';
 import {
   getFirestore,
   getDocs,
@@ -7,51 +7,64 @@ import {
   doc,
   deleteDoc,
   updateDoc,
-} from "firebase/firestore";
+} from 'firebase/firestore';
+import { sub, format } from 'date-fns';
+
+const selected = ref({
+  start: sub(new Date(), { days: undefined }),
+  end: new Date(),
+});
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDghhPGaW0nCEm6Hjq2UrX5fBRK6Ikf9_U",
-  authDomain: "todo-app-dc029.firebaseapp.com",
-  projectId: "todo-app-dc029",
-  storageBucket: "todo-app-dc029.appspot.com",
-  messagingSenderId: "503092853490",
-  appId: "1:503092853490:web:9293af402fc98b0d2bee6b",
-  measurementId: "G-QW7NGBKF7K",
+  apiKey: 'AIzaSyDghhPGaW0nCEm6Hjq2UrX5fBRK6Ikf9_U',
+  authDomain: 'todo-app-dc029.firebaseapp.com',
+  projectId: 'todo-app-dc029',
+  storageBucket: 'todo-app-dc029.appspot.com',
+  messagingSenderId: '503092853490',
+  appId: '1:503092853490:web:9293af402fc98b0d2bee6b',
+  measurementId: 'G-QW7NGBKF7K',
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 definePageMeta({
-  layout: "is-sidebar",
+  layout: 'is-sidebar',
 });
 
 type DocumentData = {
   field: {
     todoTitle: string;
     todoDetail: string;
+    startDate: any;
+    targetDate: any;
     isCompleted: boolean;
   };
   id: string;
 };
+
 const todos = ref<DocumentData[]>([]);
 const editedTodo = ref<DocumentData>({
   field: {
-    todoTitle: "",
-    todoDetail: "",
+    todoTitle: '',
+    todoDetail: '',
+    startDate: null,
+    targetDate: null,
     isCompleted: false,
   },
-  id: "",
+  id: '',
 });
 const isOpen = ref(false);
 
 // データの取得
-const querySnapshot = await getDocs(collection(db, "todos"));
+const querySnapshot = await getDocs(collection(db, 'todos'));
 querySnapshot.forEach((doc) =>
   todos.value.push({
     field: {
       todoTitle: doc.data().todoTitle,
       todoDetail: doc.data().todoDetail,
+      startDate: doc.data().startDate ? doc.data().startDate.toDate() : null,
+      targetDate: doc.data().targetDate ? doc.data().targetDate.toDate() : null,
       isCompleted: doc.data().isCompleted,
     },
     id: doc.id,
@@ -62,12 +75,12 @@ querySnapshot.forEach((doc) =>
 const deleteTodo = async (todoId: string) => {
   try {
     // todoId に対応するドキュメントを削除
-    await deleteDoc(doc(db, "todos", todoId));
+    await deleteDoc(doc(db, 'todos', todoId));
 
     // 削除後、todos 配列からも削除
     todos.value = todos.value.filter((todo) => todo.id !== todoId);
   } catch (error) {
-    console.error("Error deleting todo:", error);
+    console.error('Error deleting todo:', error);
   }
   // モーダルを閉じる
   isOpen.value = false;
@@ -77,35 +90,43 @@ const deleteTodo = async (todoId: string) => {
 const openModal = (
   todoTitle: string,
   todoDetail: string,
+  startDate: any,
+  targetDate: any,
   isCompleted: boolean,
   id: string
 ) => {
   isOpen.value = true;
   editedTodo.value = {
     field: {
-      todoTitle: todoTitle,
-      todoDetail: todoDetail,
-      isCompleted: isCompleted,
+      todoTitle,
+      todoDetail,
+      startDate,
+      targetDate,
+      isCompleted,
     },
-    id: id,
+    id,
   };
 };
 
 // 編集を保存する関数
 const saveEdit = async (todoId: string) => {
   try {
-    await updateDoc(doc(db, "todos", todoId), {
+    await updateDoc(doc(db, 'todos', todoId), {
       todoTitle: editedTodo.value.field.todoTitle,
       todoDetail: editedTodo.value.field.todoDetail,
+      startDate: editedTodo.value.field.startDate,
+      targetDate: editedTodo.value.field.targetDate,
       isCompleted: editedTodo.value.field.isCompleted,
     }).then(async () => {
       todos.value.length = 0;
-      const querySnapshot = await getDocs(collection(db, "todos"));
+      const querySnapshot = await getDocs(collection(db, 'todos'));
       querySnapshot.forEach((doc) =>
         todos.value.push({
           field: {
             todoTitle: doc.data().todoTitle,
             todoDetail: doc.data().todoDetail,
+            startDate: doc.data().startDate,
+            targetDate: doc.data().targetDate,
             isCompleted: doc.data().isCompleted,
           },
           id: doc.id,
@@ -115,7 +136,7 @@ const saveEdit = async (todoId: string) => {
       isOpen.value = false;
     });
   } catch (error) {
-    console.error("Error updating todo:", error);
+    console.error('Error updating todo:', error);
   }
 };
 
@@ -123,7 +144,7 @@ const page = ref(1);
 const pageCount = ref(10);
 const displayTodos = computed(() =>
   todos.value.slice(
-    pageCount.value * (page.value - 1) + 1,
+    pageCount.value * (page.value - 1),
     pageCount.value * page.value
   )
 );
@@ -157,20 +178,29 @@ const displayTodos = computed(() =>
             </div>
             <UButton
               label="編集する"
+              class="ml-2"
               @click="
                 openModal(
                   field.todoTitle,
                   field.todoDetail,
+                  field.startDate,
+                  field.targetDate,
                   field.isCompleted,
                   id
                 )
               "
-              class="ml-2"
             />
           </div>
           <UPagination v-model="page" :page-count="10" :total="todos.length" />
 
           <UModal v-model="isOpen">
+            <UButton
+              color="gray"
+              variant="ghost"
+              icon="i-heroicons-x-mark-20-solid"
+              class="absolute top-0 right-0"
+              @click="isOpen = false"
+            />
             <div class="p-4">
               <div>
                 <p>タスク名</p>
@@ -185,13 +215,32 @@ const displayTodos = computed(() =>
                   placeholder="タスクの詳細を編集する"
                   class="mt-2"
                 />
+                <p>タスクの期限</p>
+                <p>{{ editedTodo.field.startDate }}</p>
+                <UPopover :popper="{ placement: 'bottom-start' }" class="mt-2">
+                  <UButton
+                    icon="i-heroicons-calendar-days-20-solid"
+                    variant="soft"
+                  >
+                    {{ format(editedTodo.field.startDate, 'd MMM, yyy') }} -
+                    {{ format(editedTodo.field.targetDate, 'd MMM, yyy') }}
+                  </UButton>
+
+                  <template #panel="{ close }">
+                    <div
+                      class="flex items-center sm:divide-x divide-gray-200 dark:divide-gray-800"
+                    >
+                      <DatePicker v-model="selected" @close="close" />
+                    </div>
+                  </template>
+                </UPopover>
                 <p class="mt-6">タスクのステータス</p>
                 <div class="mt-2">
                   <UToggle
+                    v-model="editedTodo.field.isCompleted"
                     size="xl"
                     on-icon="i-heroicons-check-20-solid"
                     off-icon="i-heroicons-x-mark-20-solid"
-                    v-model="editedTodo.field.isCompleted"
                     class="mr-4"
                   />
                   <p v-if="editedTodo.field.isCompleted">完了</p>
@@ -207,8 +256,8 @@ const displayTodos = computed(() =>
                     label="削除する"
                     block
                     color="rose"
-                    @click="deleteTodo(editedTodo.id)"
                     class="mt-4"
+                    @click="deleteTodo(editedTodo.id)"
                   />
                 </div>
               </div>
