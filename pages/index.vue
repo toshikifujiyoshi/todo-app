@@ -44,17 +44,6 @@ type DocumentData = {
 };
 
 const todos = ref<DocumentData[]>([]);
-const editedTodo = ref<DocumentData>({
-  field: {
-    todoTitle: '',
-    todoDetail: '',
-    startDate: null,
-    targetDate: null,
-    isCompleted: false,
-  },
-  id: '',
-});
-const isOpen = ref(false);
 
 // データの取得
 const querySnapshot = await getDocs(collection(db, 'todos'));
@@ -71,21 +60,7 @@ querySnapshot.forEach((doc) =>
   })
 );
 
-// todo を削除する関数
-const deleteTodo = async (todoId: string) => {
-  try {
-    // todoId に対応するドキュメントを削除
-    await deleteDoc(doc(db, 'todos', todoId));
-
-    // 削除後、todos 配列からも削除
-    todos.value = todos.value.filter((todo) => todo.id !== todoId);
-  } catch (error) {
-    console.error('Error deleting todo:', error);
-  }
-  // モーダルを閉じる
-  isOpen.value = false;
-};
-
+const isOpen = ref(false);
 // 編集モーダルを開く関数
 const openModal = (
   todoTitle: string,
@@ -106,16 +81,43 @@ const openModal = (
     },
     id,
   };
+  selected.value.start = new Date(startDate);
+  selected.value.end = new Date(targetDate);
 };
 
+// todo を削除する関数
+const deleteTodo = async (todoId: string) => {
+  try {
+    // todoId に対応するドキュメントを削除
+    await deleteDoc(doc(db, 'todos', todoId));
+
+    // 削除後、todos 配列からも削除
+    todos.value = todos.value.filter((todo) => todo.id !== todoId);
+  } catch (error) {
+    console.error('Error deleting todo:', error);
+  }
+  // モーダルを閉じる
+  isOpen.value = false;
+};
+
+const editedTodo = ref<DocumentData>({
+  field: {
+    todoTitle: '',
+    todoDetail: '',
+    startDate: null,
+    targetDate: null,
+    isCompleted: false,
+  },
+  id: '',
+});
 // 編集を保存する関数
 const saveEdit = async (todoId: string) => {
   try {
     await updateDoc(doc(db, 'todos', todoId), {
       todoTitle: editedTodo.value.field.todoTitle,
       todoDetail: editedTodo.value.field.todoDetail,
-      startDate: editedTodo.value.field.startDate,
-      targetDate: editedTodo.value.field.targetDate,
+      startDate: selected.value.start,
+      targetDate: selected.value.end,
       isCompleted: editedTodo.value.field.isCompleted,
     }).then(async () => {
       todos.value.length = 0;
@@ -125,8 +127,12 @@ const saveEdit = async (todoId: string) => {
           field: {
             todoTitle: doc.data().todoTitle,
             todoDetail: doc.data().todoDetail,
-            startDate: doc.data().startDate,
-            targetDate: doc.data().targetDate,
+            startDate: doc.data().startDate
+              ? doc.data().startDate.toDate()
+              : null,
+            targetDate: doc.data().targetDate
+              ? doc.data().targetDate.toDate()
+              : null,
             isCompleted: doc.data().isCompleted,
           },
           id: doc.id,
@@ -215,25 +221,37 @@ const displayTodos = computed(() =>
                   placeholder="タスクの詳細を編集する"
                   class="mt-2"
                 />
-                <p>タスクの期限</p>
-                <p>{{ editedTodo.field.startDate }}</p>
-                <UPopover :popper="{ placement: 'bottom-start' }" class="mt-2">
-                  <UButton
-                    icon="i-heroicons-calendar-days-20-solid"
-                    variant="soft"
-                  >
-                    {{ format(editedTodo.field.startDate, 'd MMM, yyy') }} -
-                    {{ format(editedTodo.field.targetDate, 'd MMM, yyy') }}
-                  </UButton>
 
-                  <template #panel="{ close }">
-                    <div
-                      class="flex items-center sm:divide-x divide-gray-200 dark:divide-gray-800"
+                <div class="mt-6">
+                  <p>タスクの期限</p>
+                  <p class="mt-2">
+                    {{ format(new Date(selected.start), 'M月d日 (E)') }}
+                    <span class="ml-4">〜</span>
+                    <span class="ml-4">{{
+                      format(new Date(selected.end), 'M月d日 (E)')
+                    }}</span>
+                  </p>
+                  <UPopover
+                    :popper="{ placement: 'bottom-start' }"
+                    class="mt-2"
+                  >
+                    <UButton
+                      icon="i-heroicons-calendar-days-20-solid"
+                      variant="soft"
                     >
-                      <DatePicker v-model="selected" @close="close" />
-                    </div>
-                  </template>
-                </UPopover>
+                      {{ format(selected.start, 'd MMM, yyy') }} ~
+                      {{ format(selected.end, 'd MMM, yyy') }}
+                    </UButton>
+
+                    <template #panel="{ close }">
+                      <div
+                        class="flex items-center sm:divide-x divide-gray-200 dark:divide-gray-800"
+                      >
+                        <DatePicker v-model="selected" @close="close" />
+                      </div>
+                    </template>
+                  </UPopover>
+                </div>
                 <p class="mt-6">タスクのステータス</p>
                 <div class="mt-2">
                   <UToggle
