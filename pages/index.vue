@@ -152,6 +152,7 @@ const statuses = ['全選択', '完了', '進行中'];
 const status = ref(statuses[0]);
 
 const filteredTodos = computed(() => {
+  page.value = 1;
   if (status.value === '完了') {
     return todos.value.filter((todo) => todo.field.isCompleted);
   } else if (status.value === '進行中') {
