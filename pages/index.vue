@@ -148,12 +148,25 @@ const saveEdit = async (todoId: string) => {
 
 const page = ref(1);
 const pageCount = ref(10);
-const displayTodos = computed(() =>
-  todos.value.slice(
+const statuses = ['全選択', '完了', '進行中'];
+const status = ref(statuses[0]);
+
+const filteredTodos = computed(() => {
+  if (status.value === '完了') {
+    return todos.value.filter((todo) => todo.field.isCompleted);
+  } else if (status.value === '進行中') {
+    return todos.value.filter((todo) => !todo.field.isCompleted);
+  } else {
+    return todos.value;
+  }
+});
+
+const displayTodos = computed(() => {
+  return filteredTodos.value.slice(
     pageCount.value * (page.value - 1),
     pageCount.value * page.value
-  )
-);
+  );
+});
 </script>
 
 <template>
@@ -161,7 +174,13 @@ const displayTodos = computed(() =>
     <div class="bg-white rounded-md p-4 text-lg">
       <h2 class="font-bold mb-2">タスク一覧</h2>
       <div>
-        <div v-if="todos.length !== 0">
+        <div class="my-2 text-center flex justify-between">
+          <p>絞り込み</p>
+          <USelect v-model="status" :options="statuses" />
+        </div>
+      </div>
+      <div>
+        <div v-if="displayTodos.length !== 0">
           <div
             v-for="{ field, id } in displayTodos"
             :key="id"
@@ -197,7 +216,11 @@ const displayTodos = computed(() =>
               "
             />
           </div>
-          <UPagination v-model="page" :page-count="10" :total="todos.length" />
+          <UPagination
+            v-model="page"
+            :page-count="10"
+            :total="filteredTodos.length"
+          />
 
           <UModal v-model="isOpen">
             <UButton
