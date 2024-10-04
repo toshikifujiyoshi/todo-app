@@ -9,6 +9,7 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 import { sub, format } from 'date-fns';
+import { ja } from 'date-fns/locale';
 
 const selected = ref({
   start: sub(new Date(), { days: undefined }),
@@ -150,9 +151,10 @@ const page = ref(1);
 const pageCount = ref(10);
 const statuses = ['全選択', '完了', '進行中'];
 const status = ref(statuses[0]);
+const sortByDates = ['昇順', '降順'];
+const sortByDate = ref(sortByDates[0]);
 
-const filteredTodos = computed(() => {
-  page.value = 1;
+const statusFilteredTodos = computed(() => {
   if (status.value === '完了') {
     return todos.value.filter((todo) => todo.field.isCompleted);
   } else if (status.value === '進行中') {
@@ -162,8 +164,25 @@ const filteredTodos = computed(() => {
   }
 });
 
+const targetDateSortedTodos = computed(() => {
+  page.value = 1;
+  return statusFilteredTodos.value.sort((a, b) => {
+    if (sortByDate.value === '昇順') {
+      return (
+        new Date(a.field.targetDate).getTime() -
+        new Date(b.field.targetDate).getTime()
+      );
+    } else {
+      return (
+        new Date(b.field.targetDate).getTime() -
+        new Date(a.field.targetDate).getTime()
+      );
+    }
+  });
+});
+
 const displayTodos = computed(() => {
-  return filteredTodos.value.slice(
+  return targetDateSortedTodos.value.slice(
     pageCount.value * (page.value - 1),
     pageCount.value * page.value
   );
@@ -177,14 +196,15 @@ const displayTodos = computed(() => {
       <div>
         <div class="my-2 text-center flex justify-between">
           <p>絞り込み</p>
+          <USelect v-model="sortByDate" :options="sortByDates" />
           <USelect v-model="status" :options="statuses" />
         </div>
       </div>
       <div>
         <div v-if="displayTodos.length !== 0">
           <div
-            v-for="{ field, id } in displayTodos"
-            :key="id"
+            v-for="displayTodo in displayTodos"
+            :key="displayTodo.id"
             class="flex justify-between p-2 border-t"
           >
             <div class="flex">
@@ -192,27 +212,34 @@ const displayTodos = computed(() => {
                 <UBadge
                   variant="subtle"
                   color="emerald"
-                  :label="field.isCompleted ? '完了' : '進行中'"
+                  :label="displayTodo.field.isCompleted ? '完了' : '進行中'"
                   :class="
-                    !field.isCompleted
+                    !displayTodo.field.isCompleted
                       ? 'text-orange-500 bg-orange-50 ring-orange-500'
                       : ''
                   "
                 />
               </div>
-              <p class="text-black">{{ field.todoTitle }}</p>
+              <p class="text-black">{{ displayTodo.field.todoTitle }}</p>
             </div>
+            <UButton icon="i-heroicons-calendar-days-20-solid" variant="soft">
+              〜{{
+                format(displayTodo.field.targetDate, 'yyyy年M月d日', {
+                  locale: ja,
+                })
+              }}
+            </UButton>
             <UButton
               label="編集する"
               class="ml-2"
               @click="
                 openModal(
-                  field.todoTitle,
-                  field.todoDetail,
-                  field.startDate,
-                  field.targetDate,
-                  field.isCompleted,
-                  id
+                  displayTodo.field.todoTitle,
+                  displayTodo.field.todoDetail,
+                  displayTodo.field.startDate,
+                  displayTodo.field.targetDate,
+                  displayTodo.field.isCompleted,
+                  displayTodo.id
                 )
               "
             />
@@ -220,7 +247,7 @@ const displayTodos = computed(() => {
           <UPagination
             v-model="page"
             :page-count="10"
-            :total="filteredTodos.length"
+            :total="targetDateSortedTodos.length"
           />
 
           <UModal v-model="isOpen">
