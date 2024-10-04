@@ -20,16 +20,13 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const isOpen = ref(false);
+const addTodoModalIsOpen = ref(false);
+const isError = ref(false);
 const todoTitle = ref<string>('');
 const todoDetail = ref<string>('');
 const count = ref(0);
 
-/**
- * Emits
- */
 interface Emits {
-  // 関数名, 引数の型, 返り値の型
   (e: 'addTodo', v: number): void;
 }
 
@@ -37,6 +34,7 @@ const emits = defineEmits<Emits>();
 
 const addTodo = async () => {
   if (todoTitle.value === '') {
+    isError.value = true;
     return;
   }
   await addDoc(collection(db, 'todos'), {
@@ -46,14 +44,28 @@ const addTodo = async () => {
     targetDate: selected.value.end,
     isCompleted: false,
   });
+
   // モーダルを閉じる
-  isOpen.value = false;
+  addTodoModalIsOpen.value = false;
+
   // ユーザーが入力した値をリセット
   todoTitle.value = '';
   todoDetail.value = '';
+
   count.value++;
   emits('addTodo', count.value);
 };
+
+watch(todoTitle, (newValue) => {
+  if (newValue !== '') {
+    isError.value = false;
+  }
+});
+watch(addTodoModalIsOpen, (newValue) => {
+  if (!newValue) {
+    isError.value = false;
+  }
+});
 </script>
 <template>
   <div class="px-10 py-20 w-[100%] height-[100%] bg-slate-200">
@@ -63,8 +75,12 @@ const addTodo = async () => {
         <UInput v-model="todoTitle" placeholder="タスク名を入力" />
       </div>
       <div class="mt-8">
-        <UButton label="タスクを作成する" block @click="isOpen = true" />
-        <UModal v-model="isOpen">
+        <UButton
+          label="タスクを作成する"
+          block
+          @click="addTodoModalIsOpen = true"
+        />
+        <UModal v-model="addTodoModalIsOpen">
           <div class="p-4">
             <div>
               <UButton
@@ -72,7 +88,7 @@ const addTodo = async () => {
                 variant="ghost"
                 icon="i-heroicons-x-mark-20-solid"
                 class="absolute top-0 right-0"
-                @click="isOpen = false"
+                @click="addTodoModalIsOpen = false"
               />
               <p>タスク名</p>
               <UInput
@@ -112,6 +128,9 @@ const addTodo = async () => {
                 class="mt-6"
                 @click="addTodo"
               />
+              <div v-if="isError" class="text-red-500">
+                タスク名が入力されていません。タスク名を入力してください。
+              </div>
             </div>
           </div>
         </UModal>

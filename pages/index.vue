@@ -61,7 +61,18 @@ querySnapshot.forEach((doc) =>
   })
 );
 
-const isOpen = ref(false);
+const editTodoModalIsOpen = ref(false);
+const editedTodo = ref<DocumentData>({
+  field: {
+    todoTitle: '',
+    todoDetail: '',
+    startDate: null,
+    targetDate: null,
+    isCompleted: false,
+  },
+  id: '',
+});
+
 // 編集モーダルを開く関数
 const openModal = (
   todoTitle: string,
@@ -71,7 +82,7 @@ const openModal = (
   isCompleted: boolean,
   id: string
 ) => {
-  isOpen.value = true;
+  editTodoModalIsOpen.value = true;
   editedTodo.value = {
     field: {
       todoTitle,
@@ -98,21 +109,15 @@ const deleteTodo = async (todoId: string) => {
     console.error('Error deleting todo:', error);
   }
   // モーダルを閉じる
-  isOpen.value = false;
+  editTodoModalIsOpen.value = false;
 };
 
-const editedTodo = ref<DocumentData>({
-  field: {
-    todoTitle: '',
-    todoDetail: '',
-    startDate: null,
-    targetDate: null,
-    isCompleted: false,
-  },
-  id: '',
-});
 // 編集を保存する関数
 const saveEdit = async (todoId: string) => {
+  if (editedTodo.value.field.todoTitle === '') {
+    isError.value = true;
+    return;
+  }
   try {
     await updateDoc(doc(db, 'todos', todoId), {
       todoTitle: editedTodo.value.field.todoTitle,
@@ -121,6 +126,7 @@ const saveEdit = async (todoId: string) => {
       targetDate: selected.value.end,
       isCompleted: editedTodo.value.field.isCompleted,
     }).then(async () => {
+      // todoを保存後タスクをtodoを更新する
       todos.value.length = 0;
       const querySnapshot = await getDocs(collection(db, 'todos'));
       querySnapshot.forEach((doc) =>
@@ -140,15 +146,18 @@ const saveEdit = async (todoId: string) => {
         })
       );
       // モーダルを閉じる
-      isOpen.value = false;
+      editTodoModalIsOpen.value = false;
     });
   } catch (error) {
     console.error('Error updating todo:', error);
   }
 };
 
+// ページネーション
 const page = ref(1);
 const pageCount = ref(10);
+
+// ソート機能
 const statuses = ['全選択', '完了', '進行中'];
 const status = ref(statuses[0]);
 const sortByDates = ['昇順', '降順'];
@@ -187,6 +196,23 @@ const displayTodos = computed(() => {
     pageCount.value * page.value
   );
 });
+
+// タスク名が入力されていないときにエラー文を表示させる
+const isError = ref(false);
+
+watch(
+  () => editedTodo.value.field.todoTitle,
+  (newValue) => {
+    if (newValue !== '') {
+      isError.value = false;
+    }
+  }
+);
+watch(editTodoModalIsOpen, (newValue) => {
+  if (!newValue) {
+    isError.value = false;
+  }
+});
 </script>
 
 <template>
@@ -222,7 +248,19 @@ const displayTodos = computed(() => {
               </div>
               <p class="text-black">{{ displayTodo.field.todoTitle }}</p>
             </div>
-            <UButton icon="i-heroicons-calendar-days-20-solid" variant="soft">
+            <UButton
+              icon="i-heroicons-calendar-days-20-solid"
+              variant="soft"
+              :color="
+                displayTodo.field.targetDate < new Date() ? 'red' : 'primary'
+              "
+              class="cursor-default"
+              :class="
+                displayTodo.field.targetDate < new Date()
+                  ? 'bg-red-50'
+                  : ' hover:bg-primary-50'
+              "
+            >
               〜{{
                 format(displayTodo.field.targetDate, 'yyyy年M月d日', {
                   locale: ja,
@@ -250,13 +288,13 @@ const displayTodos = computed(() => {
             :total="targetDateSortedTodos.length"
           />
 
-          <UModal v-model="isOpen">
+          <UModal v-model="editTodoModalIsOpen">
             <UButton
               color="gray"
               variant="ghost"
               icon="i-heroicons-x-mark-20-solid"
               class="absolute top-0 right-0"
-              @click="isOpen = false"
+              @click="editTodoModalIsOpen = false"
             />
             <div class="p-4">
               <div>
@@ -284,7 +322,7 @@ const displayTodos = computed(() => {
                   </p>
                   <UPopover
                     :popper="{ placement: 'bottom-start' }"
-                    class="mt-2"
+                    class="mt-2 w-[240px]"
                   >
                     <UButton
                       icon="i-heroicons-calendar-days-20-solid"
@@ -321,6 +359,9 @@ const displayTodos = computed(() => {
                     block
                     @click="saveEdit(editedTodo.id)"
                   />
+                  <div v-if="isError" class="text-red-500">
+                    タスク名が入力されていません。タスク名を入力してください。
+                  </div>
                   <UButton
                     label="削除する"
                     block
