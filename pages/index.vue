@@ -195,6 +195,7 @@ const sortedTodos = computed(() => {
       );
     }
   });
+  page.value = 1;
 
   return processedTodos;
 });
