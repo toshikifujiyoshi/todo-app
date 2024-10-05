@@ -37,8 +37,8 @@ type DocumentData = {
   field: {
     todoTitle: string;
     todoDetail: string;
-    startDate: any;
-    targetDate: any;
+    startDate: Date;
+    targetDate: Date;
     isCompleted: boolean;
   };
   id: string;
@@ -53,8 +53,8 @@ querySnapshot.forEach((doc) =>
     field: {
       todoTitle: doc.data().todoTitle,
       todoDetail: doc.data().todoDetail,
-      startDate: doc.data().startDate ? doc.data().startDate.toDate() : null,
-      targetDate: doc.data().targetDate ? doc.data().targetDate.toDate() : null,
+      startDate: doc.data().startDate.toDate(),
+      targetDate: doc.data().targetDate.toDate(),
       isCompleted: doc.data().isCompleted,
     },
     id: doc.id,
@@ -66,8 +66,8 @@ const editedTodo = ref<DocumentData>({
   field: {
     todoTitle: '',
     todoDetail: '',
-    startDate: null,
-    targetDate: null,
+    startDate: new Date(),
+    targetDate: new Date(),
     isCompleted: false,
   },
   id: '',
@@ -113,6 +113,7 @@ const deleteTodo = async (todoId: string) => {
 };
 
 // 編集を保存する関数
+const isError = ref(false);
 const saveEdit = async (todoId: string) => {
   if (editedTodo.value.field.todoTitle === '') {
     isError.value = true;
@@ -134,12 +135,8 @@ const saveEdit = async (todoId: string) => {
           field: {
             todoTitle: doc.data().todoTitle,
             todoDetail: doc.data().todoDetail,
-            startDate: doc.data().startDate
-              ? doc.data().startDate.toDate()
-              : null,
-            targetDate: doc.data().targetDate
-              ? doc.data().targetDate.toDate()
-              : null,
+            startDate: doc.data().startDate.toDate(),
+            targetDate: doc.data().targetDate.toDate(),
             isCompleted: doc.data().isCompleted,
           },
           id: doc.id,
@@ -153,53 +150,7 @@ const saveEdit = async (todoId: string) => {
   }
 };
 
-// ページネーション
-const page = ref(1);
-const pageCount = ref(10);
-
-// ソート機能
-const statuses = ['全選択', '完了', '進行中'];
-const status = ref(statuses[0]);
-const sortByDates = ['昇順', '降順'];
-const sortByDate = ref(sortByDates[0]);
-
-const statusFilteredTodos = computed(() => {
-  if (status.value === '完了') {
-    return todos.value.filter((todo) => todo.field.isCompleted);
-  } else if (status.value === '進行中') {
-    return todos.value.filter((todo) => !todo.field.isCompleted);
-  } else {
-    return todos.value;
-  }
-});
-
-const targetDateSortedTodos = computed(() => {
-  page.value = 1;
-  return statusFilteredTodos.value.sort((a, b) => {
-    if (sortByDate.value === '昇順') {
-      return (
-        new Date(a.field.targetDate).getTime() -
-        new Date(b.field.targetDate).getTime()
-      );
-    } else {
-      return (
-        new Date(b.field.targetDate).getTime() -
-        new Date(a.field.targetDate).getTime()
-      );
-    }
-  });
-});
-
-const displayTodos = computed(() => {
-  return targetDateSortedTodos.value.slice(
-    pageCount.value * (page.value - 1),
-    pageCount.value * page.value
-  );
-});
-
 // タスク名が入力されていないときにエラー文を表示させる
-const isError = ref(false);
-
 watch(
   () => editedTodo.value.field.todoTitle,
   (newValue) => {
@@ -212,6 +163,50 @@ watch(editTodoModalIsOpen, (newValue) => {
   if (!newValue) {
     isError.value = false;
   }
+});
+
+// ソート機能
+const statuses = ['全選択', '完了', '進行中'];
+const status = ref(statuses[0]);
+const sortByDates = ['昇順', '降順'];
+const sortByDate = ref(sortByDates[0]);
+
+const sortedTodos = computed(() => {
+  let processedTodos = todos.value;
+
+  // ステータスでフィルタリング
+  if (status.value === '完了') {
+    processedTodos = processedTodos.filter((todo) => todo.field.isCompleted);
+  } else if (status.value === '進行中') {
+    processedTodos = processedTodos.filter((todo) => !todo.field.isCompleted);
+  }
+
+  // 日付でソート
+  processedTodos = processedTodos.sort((a, b) => {
+    if (sortByDate.value === '昇順') {
+      return (
+        new Date(a.field.targetDate).getTime() -
+        new Date(b.field.targetDate).getTime()
+      );
+    } else {
+      return (
+        new Date(b.field.targetDate).getTime() -
+        new Date(a.field.targetDate).getTime()
+      );
+    }
+  });
+
+  return processedTodos;
+});
+
+// ページネーション
+const page = ref(1);
+const pageCount = ref(10);
+const displayTodos = computed(() => {
+  return sortedTodos.value.slice(
+    pageCount.value * (page.value - 1),
+    pageCount.value * page.value
+  );
 });
 </script>
 
@@ -285,7 +280,7 @@ watch(editTodoModalIsOpen, (newValue) => {
           <UPagination
             v-model="page"
             :page-count="10"
-            :total="targetDateSortedTodos.length"
+            :total="sortedTodos.length"
           />
 
           <UModal v-model="editTodoModalIsOpen">

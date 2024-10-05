@@ -68,7 +68,7 @@ watch(addTodoModalIsOpen, (newValue) => {
 });
 </script>
 <template>
-  <div class="px-10 py-20 w-[100%] height-[100%] bg-slate-200">
+  <div class="px-10 py-20 height-[100%] bg-slate-200">
     <div class="bg-white p-6 rounded-md">
       <div>
         <p>タスクを作成</p>
