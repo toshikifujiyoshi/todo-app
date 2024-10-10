@@ -224,66 +224,146 @@ const displayTodos = computed(() => {
       </div>
       <div>
         <div v-if="displayTodos.length !== 0">
-          <div
-            v-for="displayTodo in displayTodos"
-            :key="displayTodo.id"
-            class="flex justify-between p-2 border-t"
+          <UAccordion
+            multiple
+            color="black"
+            variant="link"
+            size="xl"
+            :items="displayTodos"
           >
-            <div class="flex">
-              <div class="w-[60px] mr-4 text-center">
-                <UBadge
-                  variant="subtle"
-                  color="emerald"
-                  :label="displayTodo.field.isCompleted ? '完了' : '進行中'"
-                  :class="
-                    !displayTodo.field.isCompleted
-                      ? 'text-orange-500 bg-orange-50 ring-orange-500'
-                      : ''
-                  "
-                />
+            <template #default="{ item, open }">
+              <UButton
+                color="gray"
+                variant="ghost"
+                class="flex justify-between border-b border-gray-200 dark:border-gray-700"
+                :ui="{ rounded: 'rounded-none', padding: { sm: 'p-3' } }"
+              >
+                <template #leading>
+                  <div class="flex items-center">
+                    <div class="w-[60px] mr-4 text-center">
+                      <UBadge
+                        variant="subtle"
+                        color="emerald"
+                        :label="item.field.isCompleted ? '完了' : '進行中'"
+                        :class="
+                          !item.field.isCompleted
+                            ? 'text-orange-500 bg-orange-50 ring-orange-500'
+                            : ''
+                        "
+                      />
+                    </div>
+                    <p class="text-black font-bold">
+                      {{ item.field.todoTitle }}
+                    </p>
+                  </div>
+                </template>
+
+                <template #trailing>
+                  <div class="flex items-center">
+                    <UBadge
+                      icon="i-heroicons-calendar-days-20-solid"
+                      variant="soft"
+                      :color="
+                        item.field.targetDate &&
+                        item.field.targetDate < new Date()
+                          ? 'red'
+                          : 'primary'
+                      "
+                      :class="
+                        item.field.targetDate &&
+                        item.field.targetDate < new Date()
+                          ? 'bg-red-50'
+                          : ' hover:bg-primary-50'
+                      "
+                    >
+                      〜{{
+                        format(item.field.targetDate, 'yyyy年M月d日', {
+                          locale: ja,
+                        })
+                      }}
+                    </UBadge>
+                    <UIcon
+                      name="i-heroicons-chevron-right-20-solid"
+                      class="w-5 h-5 transform transition-transform duration-200"
+                      :class="[open && 'rotate-90']"
+                    />
+                  </div>
+                </template>
+              </UButton>
+            </template>
+            <template #item="{ item }">
+              <div class="px-2 text-black">
+                <div>
+                  <p class="font-bold">タスクの詳細</p>
+                  <p v-if="item.field.todoDetail" class="mt-2">
+                    {{ item.field.todoDetail }}
+                  </p>
+                  <p v-else class="mt-2">タスクの詳細が設定されていません。</p>
+                </div>
+                <div class="flex justify-between mt-6">
+                  <div>
+                    <p class="font-bold">タスクの期限</p>
+                    <UBadge
+                      icon="i-heroicons-calendar-days-20-solid"
+                      variant="soft"
+                      :color="
+                        item.field.targetDate &&
+                        item.field.targetDate < new Date()
+                          ? 'red'
+                          : 'primary'
+                      "
+                      class="mt-2"
+                      :class="
+                        item.field.targetDate &&
+                        item.field.targetDate < new Date()
+                          ? 'bg-red-50'
+                          : ' hover:bg-primary-50'
+                      "
+                    >
+                      {{
+                        format(item.field.startDate, 'yyyy年M月d日', {
+                          locale: ja,
+                        })
+                      }}
+                      〜
+                      {{
+                        format(item.field.targetDate, 'yyyy年M月d日', {
+                          locale: ja,
+                        })
+                      }}
+                    </UBadge>
+                  </div>
+                  <div>
+                    <UButton
+                      label="編集する"
+                      @click="
+                        openModal(
+                          item.field.todoTitle,
+                          item.field.todoDetail,
+                          item.field.startDate,
+                          item.field.targetDate,
+                          item.field.isCompleted,
+                          item.id
+                        )
+                      "
+                    />
+                    <UButton
+                      label="削除する"
+                      block
+                      class="mt-2"
+                      color="rose"
+                      @click="deleteTodo(editedTodo.id)"
+                    />
+                  </div>
+                </div>
               </div>
-              <p class="text-black">{{ displayTodo.field.todoTitle }}</p>
-            </div>
-            <UButton
-              icon="i-heroicons-calendar-days-20-solid"
-              variant="soft"
-              :color="
-                displayTodo.field.targetDate < new Date() ? 'red' : 'primary'
-              "
-              class="cursor-default"
-              :class="
-                displayTodo.field.targetDate < new Date()
-                  ? 'bg-red-50'
-                  : ' hover:bg-primary-50'
-              "
-            >
-              〜{{
-                format(displayTodo.field.targetDate, 'yyyy年M月d日', {
-                  locale: ja,
-                })
-              }}
-            </UButton>
-            <UButton
-              label="編集する"
-              class="ml-2"
-              @click="
-                openModal(
-                  displayTodo.field.todoTitle,
-                  displayTodo.field.todoDetail,
-                  displayTodo.field.startDate,
-                  displayTodo.field.targetDate,
-                  displayTodo.field.isCompleted,
-                  displayTodo.id
-                )
-              "
-            />
-          </div>
+            </template>
+          </UAccordion>
           <UPagination
             v-model="page"
             :page-count="10"
             :total="sortedTodos.length"
           />
-
           <UModal v-model="editTodoModalIsOpen">
             <UButton
               color="gray"
@@ -358,18 +438,12 @@ const displayTodos = computed(() => {
                   <div v-if="isError" class="text-red-500">
                     タスク名が入力されていません。タスク名を入力してください。
                   </div>
-                  <UButton
-                    label="削除する"
-                    block
-                    color="rose"
-                    class="mt-4"
-                    @click="deleteTodo(editedTodo.id)"
-                  />
                 </div>
               </div>
             </div>
           </UModal>
         </div>
+
         <div v-else class="border-t text-center py-8">
           タスクがありません。タスクを作成してください。
         </div>
