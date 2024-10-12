@@ -195,9 +195,15 @@ const sortedTodos = computed(() => {
       );
     }
   });
-  page.value = 1;
 
   return processedTodos;
+});
+
+// ソート後にページをリセットし、アコーディオンをリセット
+const accordionKey = ref(0);
+watch([status, sortByDate], () => {
+  page.value = 1; // ページリセット
+  accordionKey.value += 1; // アコーディオンリセット
 });
 
 // ページネーション
@@ -223,7 +229,7 @@ const displayTodos = computed(() => {
         </div>
       </div>
       <div>
-        <div v-if="displayTodos.length !== 0">
+        <div v-if="displayTodos.length !== 0" :key="accordionKey">
           <UAccordion
             multiple
             color="black"
@@ -292,7 +298,7 @@ const displayTodos = computed(() => {
               </UButton>
             </template>
             <template #item="{ item }">
-              <div class="px-2 text-black">
+              <div class="p-4 text-black">
                 <div>
                   <p class="font-bold">タスクの詳細</p>
                   <p v-if="item.field.todoDetail" class="mt-2">
@@ -363,6 +369,7 @@ const displayTodos = computed(() => {
             v-model="page"
             :page-count="10"
             :total="sortedTodos.length"
+            class="mt-6"
           />
           <UModal v-model="editTodoModalIsOpen">
             <UButton
