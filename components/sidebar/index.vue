@@ -25,6 +25,7 @@ const isError = ref(false);
 const todoTitle = ref<string>('');
 const todoDetail = ref<string>('');
 const count = ref(0);
+const toast = useToast();
 
 interface Emits {
   (e: 'addTodo', v: number): void;
@@ -37,25 +38,41 @@ const addTodo = async () => {
     isError.value = true;
     return;
   }
-  await addDoc(collection(db, 'todos'), {
-    todoTitle: todoTitle.value,
-    todoDetail: todoDetail.value,
-    startDate: selected.value.start,
-    targetDate: selected.value.end,
-    isCompleted: false,
-  });
+  try {
+    await addDoc(collection(db, 'todos'), {
+      todoTitle: todoTitle.value,
+      todoDetail: todoDetail.value,
+      startDate: selected.value.start,
+      targetDate: selected.value.end,
+      isCompleted: false,
+    }).then(() => {
+      toast.add({
+        title: 'タスクを作成しました。',
+        icon: 'i-heroicons-check-circle',
+        timeout: 3000,
+      });
+      // モーダルを閉じる
+      addTodoModalIsOpen.value = false;
 
-  // モーダルを閉じる
-  addTodoModalIsOpen.value = false;
+      // ユーザーが入力した値をリセット
+      todoTitle.value = '';
+      todoDetail.value = '';
 
-  // ユーザーが入力した値をリセット
-  todoTitle.value = '';
-  todoDetail.value = '';
-
-  count.value++;
-  emits('addTodo', count.value);
+      count.value++;
+      emits('addTodo', count.value);
+    });
+  } catch (error) {
+    console.error('Error deleting todo:', error);
+    toast.add({
+      title: 'タスクを作成できませんでした。',
+      icon: 'i-heroicons-exclamation-triangle',
+      color: 'red',
+      timeout: 3000,
+    });
+  }
 };
 
+// タスク名が入力されていないときにエラー文を表示させる
 watch(todoTitle, (newValue) => {
   if (newValue !== '') {
     isError.value = false;

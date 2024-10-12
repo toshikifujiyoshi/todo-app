@@ -46,7 +46,7 @@ type DocumentData = {
 
 const todos = ref<DocumentData[]>([]);
 
-// データの取得
+// タスクデータの取得
 const querySnapshot = await getDocs(collection(db, 'todos'));
 querySnapshot.forEach((doc) =>
   todos.value.push({
@@ -97,19 +97,44 @@ const openModal = (
   selected.value.end = new Date(targetDate);
 };
 
-// todo を削除する関数
+const toast = useToast();
+
+// タスクを削除する関数
 const deleteTodo = async (todoId: string) => {
   try {
     // todoId に対応するドキュメントを削除
-    await deleteDoc(doc(db, 'todos', todoId));
-
-    // 削除後、todos 配列からも削除
-    todos.value = todos.value.filter((todo) => todo.id !== todoId);
+    await deleteDoc(doc(db, 'todos', todoId)).then(async () => {
+      // 削除完了後タスクを更新する
+      todos.value.length = 0;
+      const querySnapshot = await getDocs(collection(db, 'todos'));
+      querySnapshot.forEach((doc) =>
+        todos.value.push({
+          field: {
+            todoTitle: doc.data().todoTitle,
+            todoDetail: doc.data().todoDetail,
+            startDate: doc.data().startDate.toDate(),
+            targetDate: doc.data().targetDate.toDate(),
+            isCompleted: doc.data().isCompleted,
+          },
+          id: doc.id,
+        })
+      );
+      // 削除完了をスナックバーにて通知
+      toast.add({
+        title: 'タスクを削除しました。',
+        icon: 'i-heroicons-check-circle',
+        timeout: 3000,
+      });
+    });
   } catch (error) {
     console.error('Error deleting todo:', error);
+    toast.add({
+      title: 'タスクを削除できませんでした。',
+      icon: 'i-heroicons-exclamation-triangle',
+      color: 'red',
+      timeout: 3000,
+    });
   }
-  // モーダルを閉じる
-  editTodoModalIsOpen.value = false;
 };
 
 // 編集を保存する関数
@@ -127,7 +152,13 @@ const saveEdit = async (todoId: string) => {
       targetDate: selected.value.end,
       isCompleted: editedTodo.value.field.isCompleted,
     }).then(async () => {
-      // todoを保存後タスクをtodoを更新する
+      // 編集完了をスナックバーにて通知
+      toast.add({
+        title: 'タスクの編集が完了しました。',
+        icon: 'i-heroicons-check-circle',
+        timeout: 3000,
+      });
+      // 編集完了後タスクを更新する
       todos.value.length = 0;
       const querySnapshot = await getDocs(collection(db, 'todos'));
       querySnapshot.forEach((doc) =>
@@ -146,6 +177,12 @@ const saveEdit = async (todoId: string) => {
       editTodoModalIsOpen.value = false;
     });
   } catch (error) {
+    toast.add({
+      title: 'タスクを編集できませんでした。',
+      icon: 'i-heroicons-exclamation-triangle',
+      color: 'red',
+      timeout: 3000,
+    });
     console.error('Error updating todo:', error);
   }
 };
@@ -166,24 +203,24 @@ watch(editTodoModalIsOpen, (newValue) => {
 });
 
 // ソート機能
-const statuses = ['全選択', '完了', '進行中'];
+const statuses = ['全選択', '完了のみ', '進行中のみ'];
 const status = ref(statuses[0]);
-const sortByDates = ['昇順', '降順'];
+const sortByDates = ['完了日・昇順', '完了日・降順'];
 const sortByDate = ref(sortByDates[0]);
 
 const sortedTodos = computed(() => {
   let processedTodos = todos.value;
 
   // ステータスでフィルタリング
-  if (status.value === '完了') {
+  if (status.value === '完了のみ') {
     processedTodos = processedTodos.filter((todo) => todo.field.isCompleted);
-  } else if (status.value === '進行中') {
+  } else if (status.value === '進行中のみ') {
     processedTodos = processedTodos.filter((todo) => !todo.field.isCompleted);
   }
 
   // 日付でソート
   processedTodos = processedTodos.sort((a, b) => {
-    if (sortByDate.value === '昇順') {
+    if (sortByDate.value === '完了日・昇順') {
       return (
         new Date(a.field.targetDate).getTime() -
         new Date(b.field.targetDate).getTime()
@@ -199,16 +236,17 @@ const sortedTodos = computed(() => {
   return processedTodos;
 });
 
-// ソート後にページをリセットし、アコーディオンをリセット
+// ページネーション
+const page = ref(1);
+const pageCount = ref(10);
+
+// ソート後にページ、アコーディオンをリセット
 const accordionKey = ref(0);
 watch([status, sortByDate], () => {
   page.value = 1; // ページリセット
   accordionKey.value += 1; // アコーディオンリセット
 });
 
-// ページネーション
-const page = ref(1);
-const pageCount = ref(10);
 const displayTodos = computed(() => {
   return sortedTodos.value.slice(
     pageCount.value * (page.value - 1),
@@ -222,10 +260,12 @@ const displayTodos = computed(() => {
     <div class="bg-white rounded-md p-4 text-lg">
       <h2 class="font-bold mb-2">タスク一覧</h2>
       <div>
-        <div class="my-2 text-center flex justify-between">
-          <p>絞り込み</p>
-          <USelect v-model="sortByDate" :options="sortByDates" />
-          <USelect v-model="status" :options="statuses" />
+        <div class="my-2 text-center flex items-center justify-between">
+          <p>並び替え・絞り込み</p>
+          <div class="flex">
+            <USelect v-model="sortByDate" :options="sortByDates" />
+            <USelect v-model="status" :options="statuses" class="ml-6" />
+          </div>
         </div>
       </div>
       <div>
@@ -358,7 +398,7 @@ const displayTodos = computed(() => {
                       block
                       class="mt-2"
                       color="rose"
-                      @click="deleteTodo(editedTodo.id)"
+                      @click="deleteTodo(item.id)"
                     />
                   </div>
                 </div>
