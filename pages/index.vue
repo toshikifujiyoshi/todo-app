@@ -46,7 +46,7 @@ type DocumentData = {
 
 const todos = ref<DocumentData[]>([]);
 
-// データの取得
+// タスクデータの取得
 const querySnapshot = await getDocs(collection(db, 'todos'));
 querySnapshot.forEach((doc) =>
   todos.value.push({
@@ -97,19 +97,44 @@ const openModal = (
   selected.value.end = new Date(targetDate);
 };
 
-// todo を削除する関数
+const toast = useToast();
+
+// タスクを削除する関数
 const deleteTodo = async (todoId: string) => {
   try {
     // todoId に対応するドキュメントを削除
-    await deleteDoc(doc(db, 'todos', todoId));
-
-    // 削除後、todos 配列からも削除
-    todos.value = todos.value.filter((todo) => todo.id !== todoId);
+    await deleteDoc(doc(db, 'todos', todoId)).then(async () => {
+      // 削除完了後タスクを更新する
+      todos.value.length = 0;
+      const querySnapshot = await getDocs(collection(db, 'todos'));
+      querySnapshot.forEach((doc) =>
+        todos.value.push({
+          field: {
+            todoTitle: doc.data().todoTitle,
+            todoDetail: doc.data().todoDetail,
+            startDate: doc.data().startDate.toDate(),
+            targetDate: doc.data().targetDate.toDate(),
+            isCompleted: doc.data().isCompleted,
+          },
+          id: doc.id,
+        })
+      );
+      // 削除完了をスナックバーにて通知
+      toast.add({
+        title: 'タスクを削除しました。',
+        icon: 'i-heroicons-check-circle',
+        timeout: 3000,
+      });
+    });
   } catch (error) {
     console.error('Error deleting todo:', error);
+    toast.add({
+      title: 'タスクを削除できませんでした。',
+      icon: 'i-heroicons-exclamation-triangle',
+      color: 'red',
+      timeout: 3000,
+    });
   }
-  // モーダルを閉じる
-  editTodoModalIsOpen.value = false;
 };
 
 // 編集を保存する関数
@@ -127,7 +152,13 @@ const saveEdit = async (todoId: string) => {
       targetDate: selected.value.end,
       isCompleted: editedTodo.value.field.isCompleted,
     }).then(async () => {
-      // todoを保存後タスクをtodoを更新する
+      // 編集完了をスナックバーにて通知
+      toast.add({
+        title: 'タスクの編集が完了しました。',
+        icon: 'i-heroicons-check-circle',
+        timeout: 3000,
+      });
+      // 編集完了後タスクを更新する
       todos.value.length = 0;
       const querySnapshot = await getDocs(collection(db, 'todos'));
       querySnapshot.forEach((doc) =>
@@ -146,6 +177,12 @@ const saveEdit = async (todoId: string) => {
       editTodoModalIsOpen.value = false;
     });
   } catch (error) {
+    toast.add({
+      title: 'タスクを編集できませんでした。',
+      icon: 'i-heroicons-exclamation-triangle',
+      color: 'red',
+      timeout: 3000,
+    });
     console.error('Error updating todo:', error);
   }
 };
@@ -166,24 +203,24 @@ watch(editTodoModalIsOpen, (newValue) => {
 });
 
 // ソート機能
-const statuses = ['全選択', '完了', '進行中'];
+const statuses = ['全選択', '完了のみ', '進行中のみ'];
 const status = ref(statuses[0]);
-const sortByDates = ['昇順', '降順'];
+const sortByDates = ['完了日・昇順', '完了日・降順'];
 const sortByDate = ref(sortByDates[0]);
 
 const sortedTodos = computed(() => {
   let processedTodos = todos.value;
 
   // ステータスでフィルタリング
-  if (status.value === '完了') {
+  if (status.value === '完了のみ') {
     processedTodos = processedTodos.filter((todo) => todo.field.isCompleted);
-  } else if (status.value === '進行中') {
+  } else if (status.value === '進行中のみ') {
     processedTodos = processedTodos.filter((todo) => !todo.field.isCompleted);
   }
 
   // 日付でソート
   processedTodos = processedTodos.sort((a, b) => {
-    if (sortByDate.value === '昇順') {
+    if (sortByDate.value === '完了日・昇順') {
       return (
         new Date(a.field.targetDate).getTime() -
         new Date(b.field.targetDate).getTime()
@@ -195,7 +232,6 @@ const sortedTodos = computed(() => {
       );
     }
   });
-  page.value = 1;
 
   return processedTodos;
 });
@@ -203,6 +239,14 @@ const sortedTodos = computed(() => {
 // ページネーション
 const page = ref(1);
 const pageCount = ref(10);
+
+// ソート後にページ、アコーディオンをリセット
+const accordionKey = ref(0);
+watch([status, sortByDate], () => {
+  page.value = 1; // ページリセット
+  accordionKey.value += 1; // アコーディオンリセット
+});
+
 const displayTodos = computed(() => {
   return sortedTodos.value.slice(
     pageCount.value * (page.value - 1),
@@ -216,74 +260,157 @@ const displayTodos = computed(() => {
     <div class="bg-white rounded-md p-4 text-lg">
       <h2 class="font-bold mb-2">タスク一覧</h2>
       <div>
-        <div class="my-2 text-center flex justify-between">
-          <p>絞り込み</p>
-          <USelect v-model="sortByDate" :options="sortByDates" />
-          <USelect v-model="status" :options="statuses" />
+        <div class="my-2 text-center flex items-center justify-between">
+          <p>並び替え・絞り込み</p>
+          <div class="flex">
+            <USelect v-model="sortByDate" :options="sortByDates" />
+            <USelect v-model="status" :options="statuses" class="ml-6" />
+          </div>
         </div>
       </div>
       <div>
-        <div v-if="displayTodos.length !== 0">
-          <div
-            v-for="displayTodo in displayTodos"
-            :key="displayTodo.id"
-            class="flex justify-between p-2 border-t"
+        <div v-if="displayTodos.length !== 0" :key="accordionKey">
+          <UAccordion
+            multiple
+            color="black"
+            variant="link"
+            size="xl"
+            :items="displayTodos"
           >
-            <div class="flex">
-              <div class="w-[60px] mr-4 text-center">
-                <UBadge
-                  variant="subtle"
-                  color="emerald"
-                  :label="displayTodo.field.isCompleted ? '完了' : '進行中'"
-                  :class="
-                    !displayTodo.field.isCompleted
-                      ? 'text-orange-500 bg-orange-50 ring-orange-500'
-                      : ''
-                  "
-                />
+            <template #default="{ item, open }">
+              <UButton
+                color="gray"
+                variant="ghost"
+                class="flex justify-between border-b border-gray-200 dark:border-gray-700"
+                :ui="{ rounded: 'rounded-none', padding: { sm: 'p-3' } }"
+              >
+                <template #leading>
+                  <div class="flex items-center">
+                    <div class="w-[60px] mr-4 text-center">
+                      <UBadge
+                        variant="subtle"
+                        color="emerald"
+                        :label="item.field.isCompleted ? '完了' : '進行中'"
+                        :class="
+                          !item.field.isCompleted
+                            ? 'text-orange-500 bg-orange-50 ring-orange-500'
+                            : ''
+                        "
+                      />
+                    </div>
+                    <p class="text-black font-bold">
+                      {{ item.field.todoTitle }}
+                    </p>
+                  </div>
+                </template>
+
+                <template #trailing>
+                  <div class="flex items-center">
+                    <UBadge
+                      icon="i-heroicons-calendar-days-20-solid"
+                      variant="soft"
+                      :color="
+                        item.field.targetDate &&
+                        item.field.targetDate < new Date()
+                          ? 'red'
+                          : 'primary'
+                      "
+                      :class="
+                        item.field.targetDate &&
+                        item.field.targetDate < new Date()
+                          ? 'bg-red-50'
+                          : ' hover:bg-primary-50'
+                      "
+                    >
+                      〜{{
+                        format(item.field.targetDate, 'yyyy年M月d日', {
+                          locale: ja,
+                        })
+                      }}
+                    </UBadge>
+                    <UIcon
+                      name="i-heroicons-chevron-right-20-solid"
+                      class="w-5 h-5 transform transition-transform duration-200"
+                      :class="[open && 'rotate-90']"
+                    />
+                  </div>
+                </template>
+              </UButton>
+            </template>
+            <template #item="{ item }">
+              <div class="p-4 text-black">
+                <div>
+                  <p class="font-bold">タスクの詳細</p>
+                  <p v-if="item.field.todoDetail" class="mt-2">
+                    {{ item.field.todoDetail }}
+                  </p>
+                  <p v-else class="mt-2">タスクの詳細が設定されていません。</p>
+                </div>
+                <div class="flex justify-between mt-6">
+                  <div>
+                    <p class="font-bold">タスクの期限</p>
+                    <UBadge
+                      icon="i-heroicons-calendar-days-20-solid"
+                      variant="soft"
+                      :color="
+                        item.field.targetDate &&
+                        item.field.targetDate < new Date()
+                          ? 'red'
+                          : 'primary'
+                      "
+                      class="mt-2"
+                      :class="
+                        item.field.targetDate &&
+                        item.field.targetDate < new Date()
+                          ? 'bg-red-50'
+                          : ' hover:bg-primary-50'
+                      "
+                    >
+                      {{
+                        format(item.field.startDate, 'yyyy年M月d日', {
+                          locale: ja,
+                        })
+                      }}
+                      〜
+                      {{
+                        format(item.field.targetDate, 'yyyy年M月d日', {
+                          locale: ja,
+                        })
+                      }}
+                    </UBadge>
+                  </div>
+                  <div>
+                    <UButton
+                      label="編集する"
+                      @click="
+                        openModal(
+                          item.field.todoTitle,
+                          item.field.todoDetail,
+                          item.field.startDate,
+                          item.field.targetDate,
+                          item.field.isCompleted,
+                          item.id
+                        )
+                      "
+                    />
+                    <UButton
+                      label="削除する"
+                      block
+                      class="mt-2"
+                      color="rose"
+                      @click="deleteTodo(item.id)"
+                    />
+                  </div>
+                </div>
               </div>
-              <p class="text-black">{{ displayTodo.field.todoTitle }}</p>
-            </div>
-            <UButton
-              icon="i-heroicons-calendar-days-20-solid"
-              variant="soft"
-              :color="
-                displayTodo.field.targetDate < new Date() ? 'red' : 'primary'
-              "
-              class="cursor-default"
-              :class="
-                displayTodo.field.targetDate < new Date()
-                  ? 'bg-red-50'
-                  : ' hover:bg-primary-50'
-              "
-            >
-              〜{{
-                format(displayTodo.field.targetDate, 'yyyy年M月d日', {
-                  locale: ja,
-                })
-              }}
-            </UButton>
-            <UButton
-              label="編集する"
-              class="ml-2"
-              @click="
-                openModal(
-                  displayTodo.field.todoTitle,
-                  displayTodo.field.todoDetail,
-                  displayTodo.field.startDate,
-                  displayTodo.field.targetDate,
-                  displayTodo.field.isCompleted,
-                  displayTodo.id
-                )
-              "
-            />
-          </div>
+            </template>
+          </UAccordion>
           <UPagination
             v-model="page"
             :page-count="10"
             :total="sortedTodos.length"
+            class="mt-6"
           />
-
           <UModal v-model="editTodoModalIsOpen">
             <UButton
               color="gray"
@@ -358,18 +485,12 @@ const displayTodos = computed(() => {
                   <div v-if="isError" class="text-red-500">
                     タスク名が入力されていません。タスク名を入力してください。
                   </div>
-                  <UButton
-                    label="削除する"
-                    block
-                    color="rose"
-                    class="mt-4"
-                    @click="deleteTodo(editedTodo.id)"
-                  />
                 </div>
               </div>
             </div>
           </UModal>
         </div>
+
         <div v-else class="border-t text-center py-8">
           タスクがありません。タスクを作成してください。
         </div>
