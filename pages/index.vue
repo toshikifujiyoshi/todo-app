@@ -53,8 +53,8 @@ querySnapshot.forEach((doc) =>
     field: {
       todoTitle: doc.data().todoTitle,
       todoDetail: doc.data().todoDetail,
-      startDate: doc.data().startDate.toDate(),
-      targetDate: doc.data().targetDate.toDate(),
+      startDate: doc.data().startDate ? doc.data().startDate.toDate() : null,
+      targetDate: doc.data().targetDate ? doc.data().targetDate.toDate() : null,
       isCompleted: doc.data().isCompleted,
     },
     id: doc.id,
