@@ -45,29 +45,28 @@ const addTodo = async () => {
       startDate: selected.value.start,
       targetDate: selected.value.end,
       isCompleted: false,
-    }).then(() => {
-      toast.add({
-        title: 'タスクを作成しました。',
-        icon: 'i-heroicons-check-circle',
-        timeout: 3000,
-      });
-      // モーダルを閉じる
-      addTodoModalIsOpen.value = false;
-
-      // ユーザーが入力した値をリセット
-      todoTitle.value = '';
-      todoDetail.value = '';
-
-      count.value++;
-      emits('addTodo', count.value);
     });
+    toast.add({
+      title: 'タスクを作成しました。',
+      icon: 'i-heroicons-check-circle',
+      timeout: 3000,
+    });
+    // モーダルを閉じる
+    addTodoModalIsOpen.value = false;
+
+    // ユーザーが入力した値をリセット
+    todoTitle.value = '';
+    todoDetail.value = '';
+    isError.value = false;
+
+    count.value++;
+    emits('addTodo', count.value);
   } catch (error) {
-    console.error('Error deleting todo:', error);
     toast.add({
       title: 'タスクを作成できませんでした。',
       icon: 'i-heroicons-exclamation-triangle',
       color: 'red',
-      timeout: 3000,
+      timeout: 5000,
     });
   }
 };
@@ -109,7 +108,7 @@ watch(addTodoModalIsOpen, (newValue) => {
               />
               <p>タスク名</p>
               <UInput
-                v-model="todoTitle"
+                v-model.lazy="todoTitle"
                 placeholder="タスク名を入力"
                 class="mt-2"
               />
