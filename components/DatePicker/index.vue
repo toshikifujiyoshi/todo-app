@@ -25,6 +25,10 @@ const date = computed({
   },
 });
 
+const isDateObject = computed(
+  () => date.value && typeof date.value === 'object'
+);
+
 const attrs = {
   transparent: true,
   borderless: true,
@@ -36,7 +40,7 @@ const attrs = {
 
 <template>
   <VCalendarDatePicker
-    v-if="date && typeof date === 'object'"
+    v-if="isDateObject"
     v-model.range="date"
     :columns="2"
     v-bind="{ ...attrs, ...$attrs }"
