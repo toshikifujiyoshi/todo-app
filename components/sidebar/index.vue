@@ -1,31 +1,19 @@
 <script setup lang="ts">
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc } from 'firebase/firestore';
-import { sub, format } from 'date-fns';
+import { collection, addDoc, Firestore } from 'firebase/firestore';
+import { format } from 'date-fns';
 
-const selected = ref({
-  start: sub(new Date(), { days: -14 }),
-  end: new Date(),
-});
-
-const firebaseConfig = {
-  apiKey: 'AIzaSyDghhPGaW0nCEm6Hjq2UrX5fBRK6Ikf9_U',
-  authDomain: 'todo-app-dc029.firebaseapp.com',
-  projectId: 'todo-app-dc029',
-  storageBucket: 'todo-app-dc029.appspot.com',
-  messagingSenderId: '503092853490',
-  appId: '1:503092853490:web:9293af402fc98b0d2bee6b',
-  measurementId: 'G-QW7NGBKF7K',
-};
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+let db: Firestore;
 const addTodoModalIsOpen = ref(false);
-const isError = ref(false);
+const isTaskTitleEmpty = ref(false);
+const isAddingTodo = ref(false);
 const todoTitle = ref<string>('');
 const todoDetail = ref<string>('');
 const count = ref(0);
 const toast = useToast();
+const selected = ref({
+  start: new Date(),
+  end: new Date(),
+});
 
 interface Emits {
   (e: 'addTodo', v: number): void;
@@ -33,11 +21,18 @@ interface Emits {
 
 const emits = defineEmits<Emits>();
 
+onMounted(() => {
+  const { $firebase } = useNuxtApp();
+  db = $firebase.db;
+});
+
 const addTodo = async () => {
+  if (isAddingTodo.value) return; // 二重処理防止
   if (todoTitle.value === '') {
-    isError.value = true;
+    isTaskTitleEmpty.value = true;
     return;
   }
+  isAddingTodo.value = true;
   try {
     await addDoc(collection(db, 'todos'), {
       todoTitle: todoTitle.value,
@@ -57,7 +52,7 @@ const addTodo = async () => {
     // ユーザーが入力した値をリセット
     todoTitle.value = '';
     todoDetail.value = '';
-    isError.value = false;
+    isTaskTitleEmpty.value = false;
 
     count.value++;
     emits('addTodo', count.value);
@@ -68,18 +63,20 @@ const addTodo = async () => {
       color: 'red',
       timeout: 5000,
     });
+  } finally {
+    isAddingTodo.value = false; // 処理完了後にボタンを有効化
   }
 };
 
 // タスク名が入力されていないときにエラー文を表示させる
 watch(todoTitle, (newValue) => {
   if (newValue !== '') {
-    isError.value = false;
+    isTaskTitleEmpty.value = false;
   }
 });
 watch(addTodoModalIsOpen, (newValue) => {
   if (!newValue) {
-    isError.value = false;
+    isTaskTitleEmpty.value = false;
   }
 });
 </script>
@@ -139,12 +136,13 @@ watch(addTodoModalIsOpen, (newValue) => {
                 </UPopover>
               </div>
               <UButton
-                label="タスクを作成する"
+                :label="isAddingTodo ? '作成中...' : 'タスクを作成する'"
                 block
                 class="mt-6"
+                :disabled="isAddingTodo"
                 @click="addTodo"
               />
-              <div v-if="isError" class="text-red-500">
+              <div v-if="isTaskTitleEmpty" class="text-red-500">
                 タスク名が入力されていません。タスク名を入力してください。
               </div>
             </div>

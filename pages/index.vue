@@ -1,38 +1,21 @@
 <script setup lang="ts">
-import { initializeApp } from 'firebase/app';
+import { onMounted } from 'vue';
 import {
-  getFirestore,
   getDocs,
   collection,
   doc,
   deleteDoc,
   updateDoc,
+  Firestore,
 } from 'firebase/firestore';
 import { sub, format } from 'date-fns';
 import { ja } from 'date-fns/locale';
-
-const selected = ref({
-  start: sub(new Date(), { days: undefined }),
-  end: new Date(),
-});
-
-const firebaseConfig = {
-  apiKey: 'AIzaSyDghhPGaW0nCEm6Hjq2UrX5fBRK6Ikf9_U',
-  authDomain: 'todo-app-dc029.firebaseapp.com',
-  projectId: 'todo-app-dc029',
-  storageBucket: 'todo-app-dc029.appspot.com',
-  messagingSenderId: '503092853490',
-  appId: '1:503092853490:web:9293af402fc98b0d2bee6b',
-  measurementId: 'G-QW7NGBKF7K',
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
 
 definePageMeta({
   layout: 'is-sidebar',
 });
 
+let db: Firestore;
 type DocumentData = {
   field: {
     todoTitle: string;
@@ -43,23 +26,58 @@ type DocumentData = {
   };
   id: string;
 };
-
 const todos = ref<DocumentData[]>([]);
+const toast = useToast();
+const selected = ref({
+  start: sub(new Date(), { days: undefined }),
+  end: new Date(),
+});
+const isTaskTitleEmpty = ref(false);
+const isSavingEdit = ref(false);
+const isDeletingTodo = ref(false);
+
+// ソート機能
+const statuses = ['全選択', '完了のみ', '進行中のみ'];
+const status = ref(statuses[0]);
+const sortByDates = ['完了日・昇順', '完了日・降順'];
+const sortByDate = ref(sortByDates[0]);
+
+// ページネーション
+const page = ref(1);
+const pageCount = ref(10);
 
 // タスクデータの取得
-const querySnapshot = await getDocs(collection(db, 'todos'));
-querySnapshot.forEach((doc) =>
-  todos.value.push({
-    field: {
-      todoTitle: doc.data().todoTitle,
-      todoDetail: doc.data().todoDetail,
-      startDate: doc.data().startDate ? doc.data().startDate.toDate() : null,
-      targetDate: doc.data().targetDate ? doc.data().targetDate.toDate() : null,
-      isCompleted: doc.data().isCompleted,
-    },
-    id: doc.id,
-  })
-);
+onMounted(async () => {
+  const { $firebase } = useNuxtApp();
+  db = $firebase.db;
+
+  try {
+    const querySnapshot = await getDocs(collection(db, 'todos'));
+    querySnapshot.forEach((doc) =>
+      todos.value.push({
+        field: {
+          todoTitle: doc.data().todoTitle,
+          todoDetail: doc.data().todoDetail,
+          startDate: doc.data().startDate
+            ? doc.data().startDate.toDate()
+            : null,
+          targetDate: doc.data().targetDate
+            ? doc.data().targetDate.toDate()
+            : null,
+          isCompleted: doc.data().isCompleted,
+        },
+        id: doc.id,
+      })
+    );
+  } catch (error) {
+    toast.add({
+      title: 'タスクを取得できませんでした。',
+      icon: 'i-heroicons-exclamation-triangle',
+      color: 'red',
+      timeout: 3000,
+    });
+  }
+});
 
 const editTodoModalIsOpen = ref(false);
 const editedTodo = ref<DocumentData>({
@@ -97,10 +115,10 @@ const openModal = (
   selected.value.end = new Date(targetDate);
 };
 
-const toast = useToast();
-
 // タスクを削除する関数
 const deleteTodo = async (todoId: string) => {
+  if (isDeletingTodo.value) return; // 二重処理防止
+  isDeletingTodo.value = true;
   try {
     // todoId に対応するドキュメントを削除
     await deleteDoc(doc(db, 'todos', todoId)).then(async () => {
@@ -127,23 +145,25 @@ const deleteTodo = async (todoId: string) => {
       });
     });
   } catch (error) {
-    console.error('Error deleting todo:', error);
     toast.add({
       title: 'タスクを削除できませんでした。',
       icon: 'i-heroicons-exclamation-triangle',
       color: 'red',
       timeout: 3000,
     });
+  } finally {
+    isDeletingTodo.value = false; // 処理完了後にボタンを有効化
   }
 };
 
 // 編集を保存する関数
-const isError = ref(false);
 const saveEdit = async (todoId: string) => {
+  if (isSavingEdit.value) return; // 二重処理防止
   if (editedTodo.value.field.todoTitle === '') {
-    isError.value = true;
+    isTaskTitleEmpty.value = true;
     return;
   }
+  isSavingEdit.value = true;
   try {
     await updateDoc(doc(db, 'todos', todoId), {
       todoTitle: editedTodo.value.field.todoTitle,
@@ -183,7 +203,8 @@ const saveEdit = async (todoId: string) => {
       color: 'red',
       timeout: 3000,
     });
-    console.error('Error updating todo:', error);
+  } finally {
+    isSavingEdit.value = false; // 処理完了後にボタンを有効化
   }
 };
 
@@ -192,22 +213,17 @@ watch(
   () => editedTodo.value.field.todoTitle,
   (newValue) => {
     if (newValue !== '') {
-      isError.value = false;
+      isTaskTitleEmpty.value = false;
     }
   }
 );
 watch(editTodoModalIsOpen, (newValue) => {
   if (!newValue) {
-    isError.value = false;
+    isTaskTitleEmpty.value = false;
   }
 });
 
 // ソート機能
-const statuses = ['全選択', '完了のみ', '進行中のみ'];
-const status = ref(statuses[0]);
-const sortByDates = ['完了日・昇順', '完了日・降順'];
-const sortByDate = ref(sortByDates[0]);
-
 const sortedTodos = computed(() => {
   let processedTodos = todos.value;
 
@@ -235,10 +251,6 @@ const sortedTodos = computed(() => {
 
   return processedTodos;
 });
-
-// ページネーション
-const page = ref(1);
-const pageCount = ref(10);
 
 // ソート後にページ、アコーディオンをリセット
 const accordionKey = ref(0);
@@ -310,14 +322,14 @@ const displayTodos = computed(() => {
                       icon="i-heroicons-calendar-days-20-solid"
                       variant="soft"
                       :color="
-                        item.field.targetDate &&
-                        item.field.targetDate < new Date()
+                        item.field.targetDate.getTime() <
+                        new Date().setHours(0, 0, 0, 0)
                           ? 'red'
                           : 'primary'
                       "
                       :class="
-                        item.field.targetDate &&
-                        item.field.targetDate < new Date()
+                        item.field.targetDate.getTime() <
+                        new Date().setHours(0, 0, 0, 0)
                           ? 'bg-red-50'
                           : ' hover:bg-primary-50'
                       "
@@ -353,15 +365,15 @@ const displayTodos = computed(() => {
                       icon="i-heroicons-calendar-days-20-solid"
                       variant="soft"
                       :color="
-                        item.field.targetDate &&
-                        item.field.targetDate < new Date()
+                        item.field.targetDate.getTime() <
+                        new Date().setHours(0, 0, 0, 0)
                           ? 'red'
                           : 'primary'
                       "
                       class="mt-2"
                       :class="
-                        item.field.targetDate &&
-                        item.field.targetDate < new Date()
+                        item.field.targetDate.getTime() <
+                        new Date().setHours(0, 0, 0, 0)
                           ? 'bg-red-50'
                           : ' hover:bg-primary-50'
                       "
@@ -394,7 +406,8 @@ const displayTodos = computed(() => {
                       "
                     />
                     <UButton
-                      label="削除する"
+                      :disabled="isDeletingTodo"
+                      :label="isDeletingTodo ? '削除中...' : '削除する'"
                       block
                       class="mt-2"
                       color="rose"
@@ -478,11 +491,12 @@ const displayTodos = computed(() => {
                 </div>
                 <div class="mt-6">
                   <UButton
-                    label="編集を保存する"
+                    :label="isSavingEdit ? '保存中...' : '編集を保存する'"
                     block
+                    :disabled="isSavingEdit"
                     @click="saveEdit(editedTodo.id)"
                   />
-                  <div v-if="isError" class="text-red-500">
+                  <div v-if="isTaskTitleEmpty" class="text-red-500">
                     タスク名が入力されていません。タスク名を入力してください。
                   </div>
                 </div>
